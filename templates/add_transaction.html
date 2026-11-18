@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+
+{% block title %}{% if is_edit %}Edit Transaction #{{ transaction.id }}{% else %}Add Transaction{% endif %}{% endblock %}
+{% block page_heading %}{% if is_edit %}Edit Transaction{% else %}Record New Transaction{% endif %}{% endblock %}
+
+{% block content %}
+<div class="form-page-container">
+    <div class="form-card-wrapper">
+        <div class="card form-card">
+            <div class="card-header">
+                <div class="card-title-box">
+                    <div class="card-title-icon-box {% if preselected_type == 'income' %}income-icon{% else %}expense-icon{% endif %}" id="formTitleIcon">
+                        <i class="fa-solid {% if preselected_type == 'income' %}fa-circle-arrow-down{% else %}fa-circle-arrow-up{% endif %}"></i>
+                    </div>
+                    <div>
+                        <h3 class="card-title">{% if is_edit %}Modify Transaction #{{ transaction.id }}{% else %}Add New Transaction{% endif %}</h3>
+                        <p class="card-subtitle">Fill in the transaction details to keep your financial ledger up to date.</p>
+                    </div>
+                </div>
+                {% if is_edit %}
+                    <span class="badge badge-info">Editing ID: {{ transaction.id }}</span>
+                {% endif %}
+            </div>
+
+            <div class="card-body">
+                <form method="POST" id="transactionForm" novalidate>
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                    <!-- Type Selector (Segmented Control) -->
+                    <div class="form-group">
+                        <label class="form-label">Transaction Type <span class="required">*</span></label>
+                        <div class="type-segmented-control" role="radiogroup" aria-label="Transaction Type">
+                            <label class="type-radio-label expense-label {% if preselected_type == 'expense' %}selected{% endif %}">
+                                <input type="radio" name="type" value="expense" class="type-radio" {% if preselected_type == 'expense' %}checked{% endif %} onchange="onTransactionTypeChange('expense')">
+                                <i class="fa-solid fa-arrow-up-right"></i>
+                                <span>Expense</span>
+                            </label>
+                            <label class="type-radio-label income-label {% if preselected_type == 'income' %}selected{% endif %}">
+                                <input type="radio" name="type" value="income" class="type-radio" {% if preselected_type == 'income' %}checked{% endif %} onchange="onTransactionTypeChange('income')">
+                                <i class="fa-solid fa-arrow-down-left"></i>
+                                <span>Income</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Amount and Currency Selector Row -->
+                    <div class="form-row">
+                        <div class="form-group col-8">
+                            <label for="amount" class="form-label">Amount <span class="required">*</span></label>
+                            <div class="input-currency-wrapper">
+                                <span class="currency-symbol" id="amountCurrencySymbol">{{ supported_currencies[form_data.currency if form_data and form_data.currency else preselected_currency]['symbol'] }}</span>
+                                <input type="number" 
+                                       id="amount" 
+                                       name="amount" 
+                                       class="form-input input-currency" 
+                                       placeholder="0.00" 
+                                       step="0.01" 
+                                       min="0.01" 
+                                       value="{{ form_data.amount if form_data else '' }}" 
+                                       required 
+                                       autofocus>
+                            </div>
+                            <small class="form-help-text">Enter the exact transaction amount (greater than zero).</small>
+                        </div>
+                        <div class="form-group col-4">
+                            <label for="currency" class="form-label">Currency <span class="required">*</span></label>
+                            <select id="currency" name="currency" class="form-select" onchange="onCurrencySelectChange(this)" required>
+                                {% for code, info in supported_currencies.items() %}
+                                    {% set is_selected = (form_data.currency == code) if (form_data and form_data.currency) else (code == preselected_currency) %}
+                                    <option value="{{ code }}" data-symbol="{{ info.symbol }}" {% if is_selected %}selected{% endif %}>
+                                        {{ info.symbol }} {{ code }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <small class="form-help-text">Original currency</small>
+                        </div>
+                    </div>
+
+                    <!-- Category Selector with Quick Add Button -->
+                    <div class="form-group">
+                        <div class="label-with-action">
+                            <label for="category_id" class="form-label">Category <span class="required">*</span></label>
+                            <button type="button" class="text-btn-link" onclick="openCategoryModal()">
+                                <i class="fa-solid fa-plus"></i> New Category
+                            </button>
+                        </div>
+                        <div class="select-wrapper">
+                            <select id="category_id" name="category_id" class="form-select" required>
+                                <option value="" disabled {% if not form_data or not form_data.category_id %}selected{% endif %}>-- Select a Category --</option>
+                                {% for cat in categories %}
+                                    <option value="{{ cat.id }}" 
+                                            data-type="{{ cat.type }}" 
+                                            data-color="{{ cat.color }}"
+                                            {% if form_data and form_data.category_id|string == cat.id|string %}selected{% endif %}>
+                                        {{ cat.name }} ({{ cat.type | capitalize }})
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <small class="form-help-text">Categorize your transaction for accurate analytics and budgeting.</small>
+                    </div>
+
+                    <!-- Date & Optional Time Picker -->
+                    <div class="form-row">
+                        <div class="form-group col-12">
+                            <label for="date" class="form-label">Transaction Date <span class="required">*</span></label>
+                            <div class="input-icon-wrapper">
+                                <i class="fa-regular fa-calendar input-left-icon"></i>
+                                <input type="date" 
+                                       id="date" 
+                                       name="date" 
+                                       class="form-input with-left-icon" 
+                                       value="{{ form_data.date if form_data else current_date_str }}" 
+                                       required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Description Input -->
+                    <div class="form-group">
+                        <label for="description" class="form-label">Description / Note</label>
+                        <div class="input-icon-wrapper">
+                            <i class="fa-solid fa-pen input-left-icon"></i>
+                            <input type="text" 
+                                   id="description" 
+                                   name="description" 
+                                   class="form-input with-left-icon" 
+                                   placeholder="e.g. Grocery shopping at Trader Joe's, Monthly Salary, Coffee with team" 
+                                   maxlength="255" 
+                                   value="{{ form_data.description if form_data else '' }}">
+                        </div>
+                        <small class="form-help-text">Optional details or vendor name to easily identify this transaction later.</small>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="form-actions-row">
+                        <a href="{{ url_for('transactions_list') }}" class="btn btn-secondary">
+                            Cancel
+                        </a>
+                        <button type="submit" class="btn btn-primary" id="submitTxBtn">
+                            <i class="fa-solid fa-check"></i>
+                            <span>{% if is_edit %}Update Transaction{% else %}Save Transaction{% endif %}</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Helpful Side Guide Card -->
+        <div class="side-tips-container">
+            <div class="card tip-guide-card">
+                <div class="card-header">
+                    <div class="card-title-box">
+                        <i class="fa-solid fa-circle-question text-primary"></i>
+                        <h4 class="card-title">Quick Tips</h4>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <ul class="tip-list">
+                        <li>
+                            <i class="fa-solid fa-check text-success"></i>
+                            <div><strong>Split accurately:</strong> Keep personal and business expenses in their appropriate categories.</div>
+                        </li>
+                        <li>
+                            <i class="fa-solid fa-check text-success"></i>
+                            <div><strong>Consistent tracking:</strong> Log transactions on the same day they happen to prevent forgotten receipts.</div>
+                        </li>
+                        <li>
+                            <i class="fa-solid fa-check text-success"></i>
+                            <div><strong>Budgets:</strong> After logging regular expenses, visit the Budgeting tab to set limits.</div>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    function onCurrencySelectChange(selectEl) {
+        const symbolEl = document.getElementById('amountCurrencySymbol');
+        const selectedOption = selectEl.options[selectEl.selectedIndex];
+        if (symbolEl && selectedOption) {
+            symbolEl.textContent = selectedOption.dataset.symbol || '$';
+        }
+    }
+
+    function onTransactionTypeChange(type) {
+        // Update radio label styles
+        document.querySelectorAll('.type-radio-label').forEach(lbl => lbl.classList.remove('selected'));
+        const activeLabel = document.querySelector(`.${type}-label`);
+        if (activeLabel) activeLabel.classList.add('selected');
+
+        // Update form icon
+        const iconBox = document.getElementById('formTitleIcon');
+        if (iconBox) {
+            iconBox.className = `card-title-icon-box ${type}-icon`;
+            iconBox.innerHTML = `<i class="fa-solid ${type === 'income' ? 'fa-circle-arrow-down' : 'fa-circle-arrow-up'}"></i>`;
+        }
+
+        // Filter category dropdown to match transaction type
+        const catSelect = document.getElementById('category_id');
+        if (!catSelect) return;
+
+        let hasSelectedValid = false;
+        const currentVal = catSelect.value;
+
+        Array.from(catSelect.options).forEach(opt => {
+            if (!opt.value) return; // skip placeholder
+            const optType = opt.dataset.type;
+            const isMatch = (optType === 'both' || optType === type);
+
+            opt.hidden = !isMatch;
+            opt.disabled = !isMatch;
+
+            if (opt.value === currentVal && isMatch) {
+                hasSelectedValid = true;
+            }
+        });
+
+        if (!hasSelectedValid && catSelect.value !== '') {
+            catSelect.value = '';
+        }
+    }
+
+    // Initialize category filter on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        const checkedType = document.querySelector('input[name="type"]:checked');
+        const selectedType = checkedType ? checkedType.value : '{{ preselected_type }}';
+        onTransactionTypeChange(selectedType);
+    });
+</script>
+{% endblock %}

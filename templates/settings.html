@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}Application Settings{% endblock %}
+{% block page_heading %}Settings & Preferences{% endblock %}
+
+{% block content %}
+<div class="settings-page-container">
+    <div class="settings-grid">
+        <!-- Currency & General Preferences Card -->
+        <div class="card settings-card">
+            <div class="card-header">
+                <div class="card-title-box">
+                    <i class="fa-solid fa-sliders card-title-icon"></i>
+                    <h3 class="card-title">Currency & Display Preferences</h3>
+                </div>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('settings') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                    <!-- Default Dashboard Currency -->
+                    <div class="form-group">
+                        <label for="default_currency" class="form-label">
+                            Default Dashboard Currency <span class="required">*</span>
+                        </label>
+                        <select id="default_currency" name="default_currency" class="form-select" required>
+                            {% for code, info in supported_currencies.items() %}
+                                <option value="{{ code }}" {% if current_default == code %}selected{% endif %}>
+                                    {{ info.symbol }} {{ code }} — {{ info.name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                        <small class="form-help-text">
+                            All combined dashboard metrics, budgets, and analytics will be normalized and calculated in this currency.
+                        </small>
+                    </div>
+
+                    <!-- Live Exchange Rates Toggle -->
+                    <div class="form-group mt-3">
+                        <label class="form-label">Exchange Rate Source</label>
+                        <div class="checkbox-wrapper">
+                            <label class="custom-checkbox-label">
+                                <input type="checkbox" name="use_live_rates" id="use_live_rates" {% if live_rates_on %}checked{% endif %}>
+                                <span class="checkbox-text font-medium">Enable Live Exchange Rates</span>
+                            </label>
+                        </div>
+                        <small class="form-help-text">
+                            When enabled, FinTrack automatically synchronizes real-time conversion rates through the open exchange rates API. When disabled or offline, accurate fallback rates are utilized.
+                        </small>
+                    </div>
+
+                    <div class="form-actions-row">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fa-solid fa-floppy-disk"></i> Save Settings
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Live Exchange Rates Monitor Card -->
+        <div class="card rates-card">
+            <div class="card-header">
+                <div class="card-title-box">
+                    <i class="fa-solid fa-money-bill-transfer card-title-icon"></i>
+                    <h3 class="card-title">Current Exchange Rates</h3>
+                </div>
+                <form method="POST" action="{{ url_for('refresh_rates') }}" class="mb-0">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button type="submit" class="btn btn-outline btn-xs" title="Synchronize latest live rates">
+                        <i class="fa-solid fa-arrows-rotate"></i> Refresh Rates
+                    </button>
+                </form>
+            </div>
+            <div class="card-body p-0">
+                <div class="rates-meta-bar">
+                    <div class="rates-meta-item">
+                        <span class="meta-label">Data Source:</span>
+                        <span class="meta-val font-semibold text-primary">{{ rates_info.source }}</span>
+                    </div>
+                    <div class="rates-meta-item">
+                        <span class="meta-label">Last Synced:</span>
+                        <span class="meta-val font-mono text-muted text-xs">{{ rates_info.last_fetched }}</span>
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Currency</th>
+                                <th>Code</th>
+                                <th>Symbol</th>
+                                <th class="text-right">Rate (1 USD =)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for code, info in supported_currencies.items() %}
+                                {% set rate_val = rates_info.rates.get(code, 1.0) %}
+                                <tr {% if code == active_currency %}class="row-active-curr"{% endif %}>
+                                    <td class="font-medium">
+                                        {{ info.name }}
+                                        {% if code == active_currency %}
+                                            <span class="pill pill-income ml-2 text-xs">Active</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="font-mono font-semibold">{{ code }}</td>
+                                    <td class="font-semibold">{{ info.symbol }}</td>
+                                    <td class="text-right font-mono font-semibold">
+                                        {{ "%.4f" | format(rate_val) }} {{ code }}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

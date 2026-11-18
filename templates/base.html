@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Personal Finance & Expense Tracker - Manage income, expenses, budgets, and spending analytics.">
+    <title>{% block title %}Dashboard{% endblock %} - FinTrack Expense Tracker</title>
+    
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="app-layout">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar" id="appSidebar">
+        <div class="sidebar-header">
+            <a href="{{ url_for('dashboard') }}" class="brand-link">
+                <div class="brand-icon">
+                    <i class="fa-solid fa-wallet"></i>
+                </div>
+                <div class="brand-text">
+                    <span class="brand-title">FinTrack</span>
+                    <span class="brand-subtitle">Expense Tracker</span>
+                </div>
+            </a>
+            <button class="sidebar-close-btn" id="sidebarCloseBtn" aria-label="Close sidebar">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <nav class="sidebar-nav">
+            <div class="nav-section-label">MAIN MENU</div>
+            <ul class="nav-list">
+                <li class="nav-item">
+                    <a href="{{ url_for('dashboard') }}" class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}">
+                        <i class="fa-solid fa-gauge-high nav-icon"></i>
+                        <span>Dashboard</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('transactions_list') }}" class="nav-link {% if request.endpoint == 'transactions_list' %}active{% endif %}">
+                        <i class="fa-solid fa-receipt nav-icon"></i>
+                        <span>Transactions</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('add_transaction') }}" class="nav-link {% if request.endpoint == 'add_transaction' %}active{% endif %}">
+                        <i class="fa-solid fa-circle-plus nav-icon"></i>
+                        <span>Add Transaction</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('budgets') }}" class="nav-link {% if request.endpoint == 'budgets' %}active{% endif %}">
+                        <i class="fa-solid fa-chart-pie nav-icon"></i>
+                        <span>Budgeting</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('analytics') }}" class="nav-link {% if request.endpoint == 'analytics' %}active{% endif %}">
+                        <i class="fa-solid fa-chart-line nav-icon"></i>
+                        <span>Analytics & Reports</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('settings') }}" class="nav-link {% if request.endpoint == 'settings' %}active{% endif %}">
+                        <i class="fa-solid fa-gear nav-icon"></i>
+                        <span>Settings</span>
+                    </a>
+                </li>
+            </ul>
+
+            <div class="nav-section-label">QUICK ACTIONS</div>
+            <ul class="nav-list">
+                <li class="nav-item">
+                    <a href="{{ url_for('export_csv') }}" class="nav-link">
+                        <i class="fa-solid fa-file-csv nav-icon"></i>
+                        <span>Export CSV</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <button type="button" class="nav-link action-btn" onclick="openCategoryModal()">
+                        <i class="fa-solid fa-folder-plus nav-icon"></i>
+                        <span>New Category</span>
+                    </button>
+                </li>
+            </ul>
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="user-badge">
+                <div class="avatar-icon">
+                    <i class="fa-solid fa-user-shield"></i>
+                </div>
+                <div class="user-info">
+                    <span class="user-name">Personal Finance</span>
+                    <span class="user-role">SQLite Local DB</span>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Sidebar Backdrop for Mobile -->
+    <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+    <!-- Main Content Wrapper -->
+    <div class="main-wrapper">
+        <!-- Top Navigation Bar -->
+        <header class="topbar">
+            <div class="topbar-left">
+                <button class="sidebar-toggle-btn" id="sidebarToggleBtn" aria-label="Toggle navigation">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+                <div class="page-title-box">
+                    <h1 class="page-title">{% block page_heading %}Dashboard{% endblock %}</h1>
+                    <span class="page-date"><i class="fa-regular fa-calendar"></i> {{ current_date_str | format_date }}</span>
+                </div>
+            </div>
+
+            <div class="topbar-right">
+                <!-- Currency Quick Switcher -->
+                <div class="currency-switcher-box" title="Switch active dashboard display currency">
+                    <span class="currency-badge-icon">{{ active_currency_symbol }}</span>
+                    <select id="topbarCurrencySelect" class="currency-select-pill" onchange="window.location.href='/set-currency/' + this.value + '?next=' + encodeURIComponent(window.location.pathname + window.location.search)">
+                        {% for code, info in supported_currencies.items() %}
+                            <option value="{{ code }}" {% if code == active_currency %}selected{% endif %}>
+                                {{ info.symbol }} {{ code }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <a href="{{ url_for('export_csv') }}" class="btn btn-outline btn-sm" title="Export transactions to CSV">
+                    <i class="fa-solid fa-download"></i> <span class="hide-mobile">Export CSV</span>
+                </a>
+                <a href="{{ url_for('add_transaction') }}" class="btn btn-primary btn-sm">
+                    <i class="fa-solid fa-plus"></i> <span>Add Transaction</span>
+                </a>
+            </div>
+        </header>
+
+        <!-- Flash Messages -->
+        <div class="flash-container">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="flash-alert flash-{{ category }}" role="alert">
+                            <div class="flash-icon">
+                                {% if category == 'success' %}
+                                    <i class="fa-solid fa-circle-check"></i>
+                                {% elif category == 'error' %}
+                                    <i class="fa-solid fa-circle-exclamation"></i>
+                                {% elif category == 'warning' %}
+                                    <i class="fa-solid fa-triangle-exclamation"></i>
+                                {% else %}
+                                    <i class="fa-solid fa-circle-info"></i>
+                                {% endif %}
+                            </div>
+                            <div class="flash-message">{{ message }}</div>
+                            <button type="button" class="flash-close-btn" onclick="this.parentElement.remove()" aria-label="Close notification">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+        </div>
+
+        <!-- Main Page View Content -->
+        <main class="page-content">
+            {% if not_found %}
+                <div class="error-page-card">
+                    <i class="fa-solid fa-compass-drafting error-icon"></i>
+                    <h2>404 - Page Not Found</h2>
+                    <p>The page or financial resource you requested does not exist.</p>
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-primary">Return to Dashboard</a>
+                </div>
+            {% elif server_error %}
+                <div class="error-page-card">
+                    <i class="fa-solid fa-triangle-exclamation error-icon"></i>
+                    <h2>500 - Application Error</h2>
+                    <p>An unexpected internal error occurred. Database changes have been safely rolled back.</p>
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-primary">Return to Dashboard</a>
+                </div>
+            {% else %}
+                {% block content %}{% endblock %}
+            {% endif %}
+        </main>
+
+        <!-- App Footer -->
+        <footer class="app-footer">
+            <div class="footer-content">
+                <span>&copy; {{ current_year }} <strong>FinTrack</strong> - Python & Flask Expense Tracker</span>
+                <span class="footer-meta"><i class="fa-solid fa-shield-halved"></i> Private Local Storage</span>
+            </div>
+        </footer>
+    </div>
+
+    <!-- NATIVE MODAL: Delete Confirmation Dialog -->
+    <dialog id="deleteModal" class="native-modal">
+        <form method="POST" id="deleteForm" class="modal-card">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="modal-header">
+                <div class="modal-title-box">
+                    <div class="modal-icon warning-icon">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                    </div>
+                    <h3 class="modal-title" id="deleteModalTitle">Confirm Deletion</h3>
+                </div>
+                <button type="button" class="modal-close" onclick="closeDeleteModal()" aria-label="Close dialog">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p id="deleteModalMessage">Are you sure you want to permanently delete this record? This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeDeleteModal()">Cancel</button>
+                <button type="submit" class="btn btn-danger" id="confirmDeleteBtn">
+                    <i class="fa-solid fa-trash-can"></i> Delete Permanently
+                </button>
+            </div>
+        </form>
+    </dialog>
+
+    <!-- NATIVE MODAL: Add Custom Category Dialog -->
+    <dialog id="categoryModal" class="native-modal">
+        <form method="POST" action="{{ url_for('add_category') }}" class="modal-card">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="modal-header">
+                <div class="modal-title-box">
+                    <div class="modal-icon primary-icon">
+                        <i class="fa-solid fa-folder-plus"></i>
+                    </div>
+                    <h3 class="modal-title">Create Custom Category</h3>
+                </div>
+                <button type="button" class="modal-close" onclick="closeCategoryModal()" aria-label="Close dialog">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="cat_name" class="form-label">Category Name <span class="required">*</span></label>
+                    <input type="text" id="cat_name" name="name" class="form-input" placeholder="e.g. Pet Care, Software, Gym" required maxlength="50">
+                </div>
+
+                <div class="form-group">
+                    <label for="cat_type" class="form-label">Category Type <span class="required">*</span></label>
+                    <select id="cat_type" name="type" class="form-select" required>
+                        <option value="expense">Expense</option>
+                        <option value="income">Income</option>
+                        <option value="both">Both (Income & Expense)</option>
+                    </select>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group col-6">
+                        <label for="cat_color" class="form-label">Badge Color</label>
+                        <div class="color-picker-wrapper">
+                            <input type="color" id="cat_color" name="color" value="#6366F1" class="form-color">
+                            <span class="color-preview-text">Pick color</span>
+                        </div>
+                    </div>
+                    <div class="form-group col-6">
+                        <label for="cat_icon" class="form-label">Icon Name</label>
+                        <select id="cat_icon" name="icon" class="form-select">
+                            <option value="tag">Tag (Default)</option>
+                            <option value="utensils">Food & Dining</option>
+                            <option value="car">Vehicle / Auto</option>
+                            <option value="bag-shopping">Shopping</option>
+                            <option value="house">Housing / Rent</option>
+                            <option value="heart-pulse">Health / Medical</option>
+                            <option value="dumbbell">Fitness / Gym</option>
+                            <option value="paw">Pets / Animals</option>
+                            <option value="plane">Travel</option>
+                            <option value="film">Entertainment</option>
+                            <option value="gamepad">Gaming</option>
+                            <option value="graduation-cap">Education</option>
+                            <option value="briefcase">Work / Salary</option>
+                            <option value="laptop-code">Tech / Freelance</option>
+                            <option value="gift">Gifts</option>
+                            <option value="coins">Savings / Coins</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeCategoryModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fa-solid fa-check"></i> Save Category
+                </button>
+            </div>
+        </form>
+    </dialog>
+
+    <!-- Custom JavaScript -->
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

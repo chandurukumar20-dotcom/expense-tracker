@@ -1,0 +1,418 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+{% block page_heading %}Financial Dashboard{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+    <!-- Welcome Banner with Quick Actions -->
+    <div class="welcome-banner">
+        <div class="welcome-text">
+            <h2>Welcome to Your Financial Overview</h2>
+            <p>Track your cash flow, monitor monthly spending, and keep your budget in check.</p>
+        </div>
+        <div class="banner-actions">
+            <a href="{{ url_for('add_transaction', type='income') }}" class="btn btn-success btn-sm">
+                <i class="fa-solid fa-arrow-down-left"></i> Add Income
+            </a>
+            <a href="{{ url_for('add_transaction', type='expense') }}" class="btn btn-danger btn-sm">
+                <i class="fa-solid fa-arrow-up-right"></i> Add Expense
+            </a>
+            <a href="{{ url_for('budgets') }}" class="btn btn-outline btn-sm">
+                <i class="fa-solid fa-bullseye"></i> Set Budget
+            </a>
+        </div>
+    </div>
+
+    <!-- 6 KPI Metric Cards Grid -->
+    <div class="kpi-grid">
+        <!-- 1. Current Balance -->
+        <div class="kpi-card balance-card {% if current_balance < 0 %}negative{% endif %}">
+            <div class="kpi-header">
+                <span class="kpi-title">Current Balance</span>
+                <div class="kpi-icon-box balance-icon">
+                    <i class="fa-solid fa-scale-balanced"></i>
+                </div>
+            </div>
+            <div class="kpi-value">{{ current_balance | currency }}</div>
+            <div class="kpi-footer">
+                <span class="kpi-badge {% if current_balance >= 0 %}badge-success{% else %}badge-danger{% endif %}">
+                    {% if current_balance >= 0 %}Positive Net{% else %}Deficit{% endif %}
+                </span>
+                <span class="kpi-subtitle">Lifetime net savings</span>
+            </div>
+        </div>
+
+        <!-- 2. Monthly Income -->
+        <div class="kpi-card">
+            <div class="kpi-header">
+                <span class="kpi-title">Monthly Income</span>
+                <div class="kpi-icon-box income-icon">
+                    <i class="fa-solid fa-circle-arrow-down"></i>
+                </div>
+            </div>
+            <div class="kpi-value text-success">+{{ monthly_income | currency }}</div>
+            <div class="kpi-footer">
+                <span class="kpi-badge badge-neutral">This Month</span>
+                <span class="kpi-subtitle">{{ month_names[current_month] }} {{ current_year }}</span>
+            </div>
+        </div>
+
+        <!-- 3. Monthly Expenses -->
+        <div class="kpi-card">
+            <div class="kpi-header">
+                <span class="kpi-title">Monthly Expenses</span>
+                <div class="kpi-icon-box expense-icon">
+                    <i class="fa-solid fa-circle-arrow-up"></i>
+                </div>
+            </div>
+            <div class="kpi-value text-danger">-{{ monthly_expenses | currency }}</div>
+            <div class="kpi-footer">
+                <span class="kpi-badge badge-neutral">This Month</span>
+                <span class="kpi-subtitle">{{ month_names[current_month] }} {{ current_year }}</span>
+            </div>
+        </div>
+
+        <!-- 4. Monthly Net Savings -->
+        <div class="kpi-card">
+            <div class="kpi-header">
+                <span class="kpi-title">Monthly Net</span>
+                <div class="kpi-icon-box net-icon">
+                    <i class="fa-solid fa-piggy-bank"></i>
+                </div>
+            </div>
+            <div class="kpi-value {% if monthly_balance >= 0 %}text-success{% else %}text-danger{% endif %}">
+                {% if monthly_balance >= 0 %}+{% endif %}{{ monthly_balance | currency }}
+            </div>
+            <div class="kpi-footer">
+                <span class="kpi-badge {% if monthly_balance >= 0 %}badge-success{% else %}badge-danger{% endif %}">
+                    Income - Expenses
+                </span>
+                <span class="kpi-subtitle">Monthly cash flow</span>
+            </div>
+        </div>
+
+        <!-- 5. Total Lifetime Income -->
+        <div class="kpi-card">
+            <div class="kpi-header">
+                <span class="kpi-title">Total Income</span>
+                <div class="kpi-icon-box income-subtle-icon">
+                    <i class="fa-solid fa-vault"></i>
+                </div>
+            </div>
+            <div class="kpi-value">{{ total_income | currency }}</div>
+            <div class="kpi-footer">
+                <span class="kpi-badge badge-info">All Time</span>
+                <span class="kpi-subtitle">Total deposits recorded</span>
+            </div>
+        </div>
+
+        <!-- 6. Total Lifetime Expenses -->
+        <div class="kpi-card">
+            <div class="kpi-header">
+                <span class="kpi-title">Total Expenses</span>
+                <div class="kpi-icon-box expense-subtle-icon">
+                    <i class="fa-solid fa-money-bill-transfer"></i>
+                </div>
+            </div>
+            <div class="kpi-value">{{ total_expenses | currency }}</div>
+            <div class="kpi-footer">
+                <span class="kpi-badge badge-warning">All Time</span>
+                <span class="kpi-subtitle">Total spending recorded</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Dashboard Section: 2 Columns Layout -->
+    <div class="dashboard-main-grid">
+        <!-- Left Column: Visual Chart & Recent Transactions -->
+        <div class="dashboard-col-left">
+            <!-- 6-Month Income vs Expense Bar Chart -->
+            <div class="card chart-card">
+                <div class="card-header">
+                    <div class="card-title-box">
+                        <i class="fa-solid fa-chart-column card-title-icon"></i>
+                        <h3 class="card-title">Income vs Expenses (Last 6 Months)</h3>
+                    </div>
+                    <a href="{{ url_for('analytics') }}" class="card-action-link">Full Analytics <i class="fa-solid fa-chevron-right"></i></a>
+                </div>
+                <div class="card-body">
+                    <div class="chart-wrapper">
+                        <canvas id="dashboardIncomeExpenseChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Transactions Table Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title-box">
+                        <i class="fa-solid fa-clock-rotate-left card-title-icon"></i>
+                        <h3 class="card-title">Recent Transactions</h3>
+                    </div>
+                    <div class="card-header-actions">
+                        <a href="{{ url_for('transactions_list') }}" class="btn btn-outline btn-xs">View All</a>
+                        <a href="{{ url_for('add_transaction') }}" class="btn btn-primary btn-xs">+ Add</a>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    {% if recent_transactions %}
+                        <div class="table-responsive">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Type</th>
+                                        <th>Category</th>
+                                        <th>Description</th>
+                                        <th class="text-right">Amount</th>
+                                        <th class="text-center">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for item in recent_transactions %}
+                                        {% set tx = item.tx %}
+                                        <tr>
+                                            <td class="font-medium text-muted whitespace-nowrap">{{ tx.date | format_date('%b %d') }}</td>
+                                            <td>
+                                                {% if tx.type == 'income' %}
+                                                    <span class="pill pill-income"><i class="fa-solid fa-arrow-down-left"></i> Income</span>
+                                                {% else %}
+                                                    <span class="pill pill-expense"><i class="fa-solid fa-arrow-up-right"></i> Expense</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <span class="category-badge" style="background-color: {{ tx.category.color }}18; color: {{ tx.category.color }}; border-color: {{ tx.category.color }}40;">
+                                                    <i class="fa-solid fa-{{ tx.category.icon }}"></i>
+                                                    {{ tx.category.name }}
+                                                </span>
+                                            </td>
+                                            <td class="tx-desc-cell">
+                                                <span class="tx-desc" title="{{ tx.description }}">{{ tx.description or '—' }}</span>
+                                            </td>
+                                            <td class="text-right whitespace-nowrap">
+                                                <div class="font-semibold {% if tx.type == 'income' %}text-success{% else %}text-danger{% endif %}">
+                                                    {% if tx.type == 'income' %}+{% else %}-{% endif %}{{ item.original_formatted }}
+                                                </div>
+                                                {% if item.needs_conversion %}
+                                                    <div class="tx-converted-hint text-xs text-muted" title="Converted to active dashboard currency ({{ active_currency }})">
+                                                        ≈ {% if tx.type == 'income' %}+{% else %}-{% endif %}{{ item.converted_formatted }}
+                                                    </div>
+                                                {% endif %}
+                                            </td>
+                                            <td class="text-center whitespace-nowrap">
+                                                <div class="action-buttons-group">
+                                                    <a href="{{ url_for('edit_transaction', tx_id=tx.id) }}" class="icon-btn edit-icon-btn" title="Edit transaction">
+                                                        <i class="fa-solid fa-pen-to-square"></i>
+                                                    </a>
+                                                    <button type="button" class="icon-btn delete-icon-btn" title="Delete transaction"
+                                                        onclick="confirmDelete('{{ url_for('delete_transaction', tx_id=tx.id) }}', 'Delete this {{ tx.type }} transaction of {{ item.original_formatted }}?')">
+                                                        <i class="fa-solid fa-trash-can"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="empty-state">
+                            <i class="fa-solid fa-receipt empty-icon"></i>
+                            <h4>No transactions recorded yet</h4>
+                            <p>Get started by recording your first income or expense transaction.</p>
+                            <a href="{{ url_for('add_transaction') }}" class="btn btn-primary btn-sm">Add First Transaction</a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Monthly Budget Progress & Top Spending Categories -->
+        <div class="dashboard-col-right">
+            <!-- Monthly Budget Quick Status Card -->
+            <div class="card budget-summary-card">
+                <div class="card-header">
+                    <div class="card-title-box">
+                        <i class="fa-solid fa-bullseye card-title-icon"></i>
+                        <h3 class="card-title">{{ month_names[current_month] }} Budget Status</h3>
+                    </div>
+                    <a href="{{ url_for('budgets') }}" class="card-action-link">Manage <i class="fa-solid fa-chevron-right"></i></a>
+                </div>
+                <div class="card-body">
+                    {% if effective_budget > 0 %}
+                        <div class="budget-stat-row">
+                            <div class="budget-stat-item">
+                                <span class="stat-label">Spent</span>
+                                <span class="stat-val text-danger">{{ monthly_expenses | currency }}</span>
+                            </div>
+                            <div class="budget-stat-item text-right">
+                                <span class="stat-label">Budget</span>
+                                <span class="stat-val">{{ effective_budget | currency }}</span>
+                            </div>
+                        </div>
+
+                        <!-- Progress Bar -->
+                        <div class="progress-container">
+                            <div class="progress-bar {% if budget_percent >= 100 %}progress-exceeded{% elif budget_percent >= 80 %}progress-warning{% else %}progress-safe{% endif %}"
+                                 style="width: {{ budget_percent }}%;"></div>
+                        </div>
+
+                        <div class="budget-progress-meta">
+                            <span class="meta-percent font-semibold">{{ budget_percent }}% used</span>
+                            <span class="meta-remaining">
+                                {% if effective_budget >= monthly_expenses %}
+                                    {{ (effective_budget - monthly_expenses) | currency }} remaining
+                                {% else %}
+                                    <strong class="text-danger">Exceeded by {{ (monthly_expenses - effective_budget) | currency }}</strong>
+                                {% endif %}
+                            </span>
+                        </div>
+
+                        {% if budget_percent >= 100 %}
+                            <div class="alert-box alert-danger mt-3">
+                                <i class="fa-solid fa-triangle-exclamation"></i>
+                                <span>You have exceeded your monthly spending budget!</span>
+                            </div>
+                        {% elif budget_percent >= 80 %}
+                            <div class="alert-box alert-warning mt-3">
+                                <i class="fa-solid fa-circle-exclamation"></i>
+                                <span>Warning: You have used over 80% of your budget limit.</span>
+                            </div>
+                        {% endif %}
+                    {% else %}
+                        <div class="no-budget-prompt">
+                            <i class="fa-solid fa-sliders"></i>
+                            <p>No budget target configured for {{ month_names[current_month] }}. Set up a budget to monitor spending limits.</p>
+                            <a href="{{ url_for('budgets') }}" class="btn btn-outline btn-sm">Set Monthly Budget</a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Top Spending Categories This Month -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title-box">
+                        <i class="fa-solid fa-chart-pie card-title-icon"></i>
+                        <h3 class="card-title">Top Expenses This Month</h3>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if top_categories %}
+                        <ul class="category-spending-list">
+                            {% for cat in top_categories %}
+                                {% set pct = ((cat.total / monthly_expenses) * 100) if monthly_expenses > 0 else 0 %}
+                                <li class="category-spending-item">
+                                    <div class="cat-spending-info">
+                                        <div class="cat-spending-name">
+                                            <span class="cat-dot" style="background-color: {{ cat.color }};">
+                                                <i class="fa-solid fa-{{ cat.icon }}"></i>
+                                            </span>
+                                            <span class="name-text">{{ cat.name }}</span>
+                                        </div>
+                                        <div class="cat-spending-amount">
+                                            <span class="amount-val">{{ cat.total | currency }}</span>
+                                            <span class="percent-val">{{ "%.1f" | format(pct) }}%</span>
+                                        </div>
+                                    </div>
+                                    <div class="cat-progress-track">
+                                        <div class="cat-progress-fill" style="width: {{ pct }}%; background-color: {{ cat.color }};"></div>
+                                    </div>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <div class="empty-state-sm">
+                            <i class="fa-solid fa-tags"></i>
+                            <p>No expenses recorded for {{ month_names[current_month] }}.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Quick Tips Card -->
+            <div class="card quick-tips-card">
+                <div class="card-header">
+                    <div class="card-title-box">
+                        <i class="fa-solid fa-lightbulb text-warning"></i>
+                        <h3 class="card-title">Financial Tip</h3>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <p class="tip-text">
+                        <strong>The 50/30/20 Rule:</strong> Allocate 50% of your income to needs, 30% to wants, and 20% directly to savings and debt payments for financial freedom.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const chartData = {{ chart_data | tojson }};
+        const ctx = document.getElementById('dashboardIncomeExpenseChart');
+        if (ctx && typeof Chart !== 'undefined') {
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: chartData.labels,
+                    datasets: [
+                        {
+                            label: 'Income',
+                            data: chartData.income,
+                            backgroundColor: '#10B981',
+                            borderRadius: 6,
+                            maxBarThickness: 32
+                        },
+                        {
+                            label: 'Expenses',
+                            data: chartData.expense,
+                            backgroundColor: '#EF4444',
+                            borderRadius: 6,
+                            maxBarThickness: 32
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                usePointStyle: true,
+                                boxWidth: 8,
+                                font: { family: 'Inter', size: 12 }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': {{ active_currency_symbol }}' + context.raw.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { display: false }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(val) {
+                                    return '{{ active_currency_symbol }}' + val.toLocaleString();
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

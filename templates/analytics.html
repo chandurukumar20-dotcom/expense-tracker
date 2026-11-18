@@ -1,0 +1,371 @@
+{% extends "base.html" %}
+
+{% block title %}Analytics & Financial Reports{% endblock %}
+{% block page_heading %}Analytics & Reports{% endblock %}
+
+{% block content %}
+<div class="analytics-page-container">
+    <!-- Period Filter Toolbar Card -->
+    <div class="card analytics-filter-card">
+        <div class="card-body">
+            <form method="GET" action="{{ url_for('analytics') }}" class="analytics-filter-form" id="analyticsFilterForm">
+                <div class="period-presets">
+                    <span class="period-label"><i class="fa-solid fa-calendar-week"></i> Period:</span>
+                    <a href="{{ url_for('analytics', period='this_month') }}" class="period-chip {% if period == 'this_month' %}active{% endif %}">This Month</a>
+                    <a href="{{ url_for('analytics', period='last_month') }}" class="period-chip {% if period == 'last_month' %}active{% endif %}">Last Month</a>
+                    <a href="{{ url_for('analytics', period='last_3_months') }}" class="period-chip {% if period == 'last_3_months' %}active{% endif %}">Last 3 Months</a>
+                    <a href="{{ url_for('analytics', period='this_year') }}" class="period-chip {% if period == 'this_year' %}active{% endif %}">This Year</a>
+                    <a href="{{ url_for('analytics', period='all_time') }}" class="period-chip {% if period == 'all_time' %}active{% endif %}">All Time</a>
+                </div>
+
+                <div class="custom-range-group">
+                    <input type="hidden" name="period" value="custom">
+                    <div class="custom-date-box">
+                        <label for="start_date" class="form-label-xs">From:</label>
+                        <input type="date" id="start_date" name="start_date" value="{{ start_date }}" class="form-input form-input-xs">
+                    </div>
+                    <div class="custom-date-box">
+                        <label for="end_date" class="form-label-xs">To:</label>
+                        <input type="date" id="end_date" name="end_date" value="{{ end_date }}" class="form-input form-input-xs">
+                    </div>
+                    <button type="submit" class="btn btn-outline btn-xs">
+                        <i class="fa-solid fa-arrows-rotate"></i> Filter
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Analytics Key Metrics Grid -->
+    <div class="kpi-grid analytics-kpi-grid">
+        <!-- Total Income -->
+        <div class="kpi-card">
+            <div class="kpi-header">
+                <span class="kpi-title">Period Income</span>
+                <div class="kpi-icon-box income-icon">
+                    <i class="fa-solid fa-circle-arrow-down"></i>
+                </div>
+            </div>
+            <div class="kpi-value text-success">+{{ total_income | currency }}</div>
+            <div class="kpi-footer">
+                <span class="kpi-badge badge-neutral">{{ start_date | format_date }} - {{ end_date | format_date }}</span>
+            </div>
+        </div>
+
+        <!-- Total Expenses -->
+        <div class="kpi-card">
+            <div class="kpi-header">
+                <span class="kpi-title">Period Expenses</span>
+                <div class="kpi-icon-box expense-icon">
+                    <i class="fa-solid fa-circle-arrow-up"></i>
+                </div>
+            </div>
+            <div class="kpi-value text-danger">-{{ total_expenses | currency }}</div>
+            <div class="kpi-footer">
+                <span class="kpi-badge badge-neutral">Total outflows</span>
+            </div>
+        </div>
+
+        <!-- Net Savings -->
+        <div class="kpi-card">
+            <div class="kpi-header">
+                <span class="kpi-title">Net Savings</span>
+                <div class="kpi-icon-box net-icon">
+                    <i class="fa-solid fa-piggy-bank"></i>
+                </div>
+            </div>
+            <div class="kpi-value {% if total_savings >= 0 %}text-success{% else %}text-danger{% endif %}">
+                {% if total_savings >= 0 %}+{% endif %}{{ total_savings | currency }}
+            </div>
+            <div class="kpi-footer">
+                <span class="kpi-badge {% if total_savings >= 0 %}badge-success{% else %}badge-danger{% endif %}">
+                    Savings Rate: {{ savings_rate }}%
+                </span>
+            </div>
+        </div>
+
+        <!-- Daily Average Spending -->
+        <div class="kpi-card">
+            <div class="kpi-header">
+                <span class="kpi-title">Daily Average Expense</span>
+                <div class="kpi-icon-box expense-subtle-icon">
+                    <i class="fa-solid fa-calendar-day"></i>
+                </div>
+            </div>
+            <div class="kpi-value">{{ daily_average_expense | currency }}/day</div>
+            <div class="kpi-footer">
+                <span class="kpi-badge badge-neutral">Normalized burn</span>
+            </div>
+        </div>
+
+        <!-- Highest Spending Category -->
+        <div class="kpi-card highlight-card">
+            <div class="kpi-header">
+                <span class="kpi-title">Top Expense Category</span>
+                <div class="kpi-icon-box warning-icon">
+                    <i class="fa-solid fa-trophy"></i>
+                </div>
+            </div>
+            {% if highest_cat %}
+                <div class="kpi-value text-warning">{{ highest_cat.name }}</div>
+                <div class="kpi-footer">
+                    <span class="kpi-badge badge-warning">{{ highest_cat.total | currency }} ({{ highest_cat.percent }}%)</span>
+                    <span class="kpi-subtitle">Highest outflow</span>
+                </div>
+            {% else %}
+                <div class="kpi-value text-muted">None</div>
+                <div class="kpi-footer">
+                    <span class="kpi-subtitle">No expenses recorded</span>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Charts Row: 2 Visualizations (Monthly Bar + Category Pie) -->
+    <div class="charts-grid-row">
+        <!-- Monthly Income vs Expense Comparison Bar Chart -->
+        <div class="card chart-card-half">
+            <div class="card-header">
+                <div class="card-title-box">
+                    <i class="fa-solid fa-chart-column card-title-icon"></i>
+                    <h3 class="card-title">Income vs Expenses (12 Months)</h3>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="chart-wrapper">
+                    <canvas id="monthlyTrendChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Category Breakdown Doughnut Chart -->
+        <div class="card chart-card-half">
+            <div class="card-header">
+                <div class="card-title-box">
+                    <i class="fa-solid fa-chart-pie card-title-icon"></i>
+                    <h3 class="card-title">Expense Distribution by Category</h3>
+                </div>
+            </div>
+            <div class="card-body">
+                {% if pie_chart.data and pie_chart.data | sum > 0 %}
+                    <div class="chart-wrapper-pie">
+                        <canvas id="categoryPieChart"></canvas>
+                    </div>
+                {% else %}
+                    <div class="empty-state py-5">
+                        <i class="fa-solid fa-chart-pie empty-icon"></i>
+                        <h4>No expense data to visualize</h4>
+                        <p>Record expenses in this date range to view category distribution.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Spending Trend Line Chart -->
+    <div class="card mt-4">
+        <div class="card-header">
+            <div class="card-title-box">
+                <i class="fa-solid fa-chart-line card-title-icon"></i>
+                <h3 class="card-title">Monthly Spending Trend</h3>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="chart-wrapper">
+                <canvas id="spendingTrendLineChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Category Breakdown Table -->
+    <div class="card mt-4">
+        <div class="card-header">
+            <div class="card-title-box">
+                <i class="fa-solid fa-table-list card-title-icon"></i>
+                <h3 class="card-title">Detailed Category Breakdown</h3>
+            </div>
+            <span class="badge badge-neutral">{{ category_breakdown | length }} Categories</span>
+        </div>
+        <div class="card-body p-0">
+            {% if category_breakdown %}
+                <div class="table-responsive">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Category</th>
+                                <th class="text-center">Transactions</th>
+                                <th class="text-right">Total Amount</th>
+                                <th class="text-right" style="width: 120px;">Share (%)</th>
+                                <th style="width: 250px;">Distribution</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for cat in category_breakdown %}
+                                <tr>
+                                    <td>
+                                        <div class="cat-table-cell">
+                                            <span class="cat-dot" style="background-color: {{ cat.color }};">
+                                                <i class="fa-solid fa-{{ cat.icon }}"></i>
+                                            </span>
+                                            <span class="font-medium">{{ cat.name }}</span>
+                                        </div>
+                                    </td>
+                                    <td class="text-center font-mono">{{ cat.count }}</td>
+                                    <td class="text-right font-semibold text-danger whitespace-nowrap">{{ cat.total | currency }}</td>
+                                    <td class="text-right font-semibold whitespace-nowrap">{{ cat.share }}%</td>
+                                    <td>
+                                        <div class="progress-track-sm">
+                                            <div class="progress-fill-sm" style="width: {{ cat.share }}%; background-color: {{ cat.color }};"></div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="empty-state py-4">
+                    <p>No category spending data available for the selected period.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const trendData = {{ trend_chart | tojson }};
+        const pieData = {{ pie_chart | tojson }};
+
+        // 1. Monthly Comparison Bar Chart
+        const barCtx = document.getElementById('monthlyTrendChart');
+        if (barCtx && typeof Chart !== 'undefined') {
+            new Chart(barCtx, {
+                type: 'bar',
+                data: {
+                    labels: trendData.labels,
+                    datasets: [
+                        {
+                            label: 'Income',
+                            data: trendData.income,
+                            backgroundColor: '#10B981',
+                            borderRadius: 4
+                        },
+                        {
+                            label: 'Expenses',
+                            data: trendData.expense,
+                            backgroundColor: '#EF4444',
+                            borderRadius: 4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top', labels: { boxWidth: 10, font: { family: 'Inter' } } },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => `${ctx.dataset.label}: {{ active_currency_symbol }}${ctx.raw.toLocaleString(undefined, {minimumFractionDigits: 2})}`
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { callback: (val) => '{{ active_currency_symbol }}' + val.toLocaleString() }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 2. Category Pie / Doughnut Chart
+        const pieCtx = document.getElementById('categoryPieChart');
+        if (pieCtx && pieData.data.length > 0 && typeof Chart !== 'undefined') {
+            new Chart(pieCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: pieData.labels,
+                    datasets: [{
+                        data: pieData.data,
+                        backgroundColor: pieData.colors,
+                        borderWidth: 2,
+                        borderColor: '#ffffff',
+                        hoverOffset: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: {
+                                boxWidth: 12,
+                                font: { family: 'Inter', size: 12 }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const val = context.raw || 0;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const pct = total > 0 ? ((val / total) * 100).toFixed(1) : 0;
+                                    return ` ${context.label}: {{ active_currency_symbol }}${val.toLocaleString(undefined, {minimumFractionDigits: 2})} (${pct}%)`;
+                                }
+                            }
+                        }
+                    },
+                    cutout: '62%'
+                }
+            });
+        }
+
+        // 3. Spending Trend Line Chart
+        const lineCtx = document.getElementById('spendingTrendLineChart');
+        if (lineCtx && typeof Chart !== 'undefined') {
+            new Chart(lineCtx, {
+                type: 'line',
+                data: {
+                    labels: trendData.labels,
+                    datasets: [
+                        {
+                            label: 'Monthly Spending Trend',
+                            data: trendData.expense,
+                            borderColor: '#6366F1',
+                            backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                            borderWidth: 3,
+                            fill: true,
+                            tension: 0.35,
+                            pointBackgroundColor: '#6366F1',
+                            pointRadius: 4,
+                            pointHoverRadius: 6
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => ` Spending: {{ active_currency_symbol }}${ctx.raw.toLocaleString(undefined, {minimumFractionDigits: 2})}`
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { callback: (val) => '{{ active_currency_symbol }}' + val.toLocaleString() }
+                        }
+                    }
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}
